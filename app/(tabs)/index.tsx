@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
 import { CarCard } from "@/components/car-card";
@@ -10,13 +10,28 @@ export default function HomeScreen() {
     "https://www.willhaben.at/iad/gebrauchtwagen/auto/gebrauchtwagenboerse?DEALER=1"
   );
 
+  const [cars, setCars] = useState<Car[]>([])
+
   useEffect(() => {
-    console.log("data:", data);
+    if (!Array.isArray(data) || data.length === 0) return;
+
+    setCars((prev) => {
+      // bestehende IDs merken
+      const existingIds = new Set(prev.map((c) => c.id));
+
+      // nur neue Autos reinlassen
+      const newCars = data.filter((c) => !existingIds.has(c.id));
+
+      if (newCars.length === 0) return prev;
+
+      console.log("cars total:", cars.length);
+
+      return [...newCars, ...prev];
+    });
   }, [data]);
 
-  const cars: Car[] = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-  if (loading) {
+  if (loading && cars.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
