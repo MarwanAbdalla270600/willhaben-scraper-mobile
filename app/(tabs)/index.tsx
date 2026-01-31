@@ -12,6 +12,7 @@ export default function HomeScreen() {
 
   const [cars, setCars] = useState<Car[]>([]);
   const existingIdsRef = useRef<Set<string>>(new Set());
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!Array.isArray(data) || data.length === 0) return;
@@ -20,15 +21,19 @@ export default function HomeScreen() {
       const existingIds = existingIdsRef.current;
 
       const newCars = data.filter((c) => !existingIds.has(c.id));
-      if (newCars.length === 0) return prev;
+      if (newCars.length === 0) return prev; // <-- wichtig: Gelb bleibt!
 
       for (const c of newCars) existingIds.add(c.id);
+
+      // <-- wichtig: erst HIER highlight updaten, weil es wirklich neue gab
+      setHighlightIds(new Set(newCars.map((c) => c.id)));
 
       const next = [...newCars, ...prev];
       console.log("cars total:", next.length);
       return next;
     });
   }, [data]);
+
 
   if (loading && cars.length === 0) {
     return (
@@ -40,12 +45,7 @@ export default function HomeScreen() {
   }
 
   if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorTitle}>Fehler</Text>
-        <Text style={styles.muted}>{error}</Text>
-      </View>
-    );
+    //überlegen was man da noch macht
   }
 
   return (
@@ -54,7 +54,12 @@ export default function HomeScreen() {
         data={cars}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <CarCard car={item} openUrlOnPress onPress={(c) => console.log("open", c.id)} />
+          <CarCard
+            car={item}
+            isNew={highlightIds.has(item.id)}
+            openUrlOnPress
+            onPress={(c) => console.log("open", c.id)}
+          />
         )}
         contentContainerStyle={cars.length === 0 ? styles.emptyContainer : styles.listContainer}
         ListEmptyComponent={

@@ -57,7 +57,7 @@ export function useData(url: string) {
             if (!alive) return;
             await fetchData(url, first);
             if (!alive) return;
-            timer = setTimeout(() => loop(false), 2_000);
+            timer = setTimeout(() => loop(false), 0); //hier ist der timer
         };
 
         loop(true);
