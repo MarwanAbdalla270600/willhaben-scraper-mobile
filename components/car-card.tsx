@@ -1,22 +1,21 @@
 import { Car } from "@/types/car";
 import React, { memo, useMemo } from "react";
 import {
-  View,
-  Text,
   Image,
-  Pressable,
-  StyleSheet,
   Linking,
   Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 
 type Props = {
   car: Car;
-  onPress?: (car: Car) => void;
-  onLongPress?: (car: Car) => void;
-  /** Wenn true, öffnet der Tap automatisch car.url */
+  isNew?: boolean;
   openUrlOnPress?: boolean;
+  onPress?: (c: Car) => void;
 };
 
 function formatEuro(value?: number) {
@@ -45,7 +44,7 @@ function joinDot(parts: Array<string | null | undefined>) {
 export const CarCard = memo(function CarCard({
   car,
   onPress,
-  onLongPress,
+  isNew,
   openUrlOnPress = false,
 }: Props) {
   const price = useMemo(() => formatEuro(car.priceEur), [car.priceEur]);
@@ -93,9 +92,12 @@ export const CarCard = memo(function CarCard({
   return (
     <Pressable
       onPress={handlePress}
-      onLongPress={() => onLongPress?.(car)}
       android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.card,
+        isNew && styles.cardNew,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.row}>
         {/* Image */}
@@ -185,6 +187,10 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.96,
     transform: [{ scale: 0.998 }],
+  },
+  cardNew: {
+    backgroundColor: "#FFF3B0",
+    borderColor: "rgba(245, 158, 11, 0.45)",
   },
   row: {
     flexDirection: "row",

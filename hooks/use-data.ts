@@ -1,56 +1,73 @@
 import config from "@/config/app.config";
 import { Car } from "@/types/car";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export function useData(url: string) {
-    const [data, setData] = useState<Car[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(false);
-
     const SERVER_URL = config.API_URL;
 
-    // verhindert parallele Requests
-    const isFetching = useRef(false);
+    const [data, setData] = useState<Car[]>([]);
+    const [loading, setLoading] = useState(true); // nur initial
+    const [polling, setPolling] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    async function fetchData(targetUrl: string) {
+    const abortRef = useRef<AbortController | null>(null);
+    const isFetching = useRef(false);
+    const endpoint = useMemo(() => `${SERVER_URL}/api/data`, [SERVER_URL]);
+
+    async function fetchData(targetUrl: string, isFirst: boolean) {
         if (isFetching.current) return;
+
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         try {
             isFetching.current = true;
-            setLoading(true);
+            if (isFirst) setLoading(true);
+            else setPolling(true);
 
-            const res = await fetch(`${SERVER_URL}/api/data`, {
+            const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ data: targetUrl }),
+                signal: controller.signal,
             });
 
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const json = (await res.json()) as Car[];
             setData(json);
-            setError(false);
-        } catch (e) {
+            setError(null);
+        } catch (e: any) {
+            if (e?.name === "AbortError") return;
             console.error(e);
-            setError(true);
+            setError(e?.message ?? "Fetch failed");
         } finally {
             isFetching.current = false;
             setLoading(false);
+            setPolling(false);
         }
     }
 
     useEffect(() => {
-        // sofort einmal laden
-        fetchData(url);
+        let alive = true;
+        let timer: ReturnType<typeof setTimeout> | null = null;
 
-        // dann alle 10 Sekunden
-        const interval = setInterval(() => {
-            fetchData(url);
-        }, 10_000);
+        const loop = async (first = false) => {
+            if (!alive) return;
+            await fetchData(url, first);
+            if (!alive) return;
+            timer = setTimeout(() => loop(false), 0); //hier ist der timer
+        };
 
-        // Cleanup (SEHR wichtig!)
-        return () => clearInterval(interval);
-    }, [url, SERVER_URL]);
+        loop(true);
 
-    return { data, loading, error };
+        return () => {
+            alive = false;
+            if (timer) clearTimeout(timer);
+            abortRef.current?.abort();
+        };
+    }, [url, endpoint]);
+
+    return { data, loading, polling, error };
 }
