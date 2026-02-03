@@ -1,73 +1,61 @@
 import config from "@/config/app.config";
 import { Car } from "@/types/car";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-export function useData(url: string) {
-    const SERVER_URL = config.API_URL;
-
+export function useData() {
+    const WS_URL = config.WS_URL;
+    const [isConnected, setIsConnected] = useState<boolean>(false);
     const [data, setData] = useState<Car[]>([]);
-    const [loading, setLoading] = useState(true); // nur initial
-    const [polling, setPolling] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const abortRef = useRef<AbortController | null>(null);
-    const isFetching = useRef(false);
-    const endpoint = useMemo(() => `${SERVER_URL}/api/data`, [SERVER_URL]);
-
-    async function fetchData(targetUrl: string, isFirst: boolean) {
-        if (isFetching.current) return;
-
-        abortRef.current?.abort();
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            isFetching.current = true;
-            if (isFirst) setLoading(true);
-            else setPolling(true);
-
-            const res = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: targetUrl }),
-                signal: controller.signal,
-            });
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-            const json = (await res.json()) as Car[];
-            setData(json);
-            setError(null);
-        } catch (e: any) {
-            if (e?.name === "AbortError") return;
-            console.error(e);
-            setError(e?.message ?? "Fetch failed");
-        } finally {
-            isFetching.current = false;
-            setLoading(false);
-            setPolling(false);
-        }
-    }
+    const [isFirst, setIsFirst] = useState<boolean>(true);
+    const wsRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
-        let alive = true;
-        let timer: ReturnType<typeof setTimeout> | null = null;
-
-        const loop = async (first = false) => {
-            if (!alive) return;
-            await fetchData(url, first);
-            if (!alive) return;
-            timer = setTimeout(() => loop(false), 0); //hier ist der timer
+        console.log("🔌 Verbinde WebSocket...");
+        const ws = new WebSocket(`${WS_URL}/ws`);
+        wsRef.current = ws;
+        
+        ws.onopen = () => {
+            console.log("✅ WebSocket verbunden");
+            setIsConnected(true);
         };
 
-        loop(true);
+        ws.onmessage = (e) => {
+            try {
+                const newCars: Car[] = JSON.parse(e.data);
+                
+                if (Array.isArray(newCars)) {
+                    console.log(`📥 ${newCars.length} Autos empfangen`);
+                    
+                    setData(newCars);
+                    
+                    // Nur beim ersten nicht-leeren Array
+                    if (isFirst && newCars.length > 0) {
+                        console.log("🎯 Erste Daten geladen");
+                        setIsFirst(false);
+                    }
+                }
+            } catch (error) {
+                console.error("❌ Parse Fehler:", error);
+            }
+        };
+
+        ws.onerror = (e) => {
+            console.error("❌ WebSocket Fehler:", e);
+            setIsConnected(false);
+        };
+
+        ws.onclose = (e) => {
+            console.log("🔌 Verbindung geschlossen:", e.code);
+            setIsConnected(false);
+            setIsFirst(true); // 🔥 Bei Reconnect wieder auf first setzen
+        };
 
         return () => {
-            alive = false;
-            if (timer) clearTimeout(timer);
-            abortRef.current?.abort();
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.close();
+            }
         };
-    }, [url, endpoint]);
+    }, [WS_URL]); // Nur WS_URL als Dependency
 
-    return { data, loading, polling, error };
+    return { isConnected, isFirst, data };
 }
