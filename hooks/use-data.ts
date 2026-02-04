@@ -1,5 +1,6 @@
 import config from "@/config/app.config";
 import { Car } from "@/types/car";
+import { playNewCarsSound } from "@/utils/sound";
 import { useEffect, useRef, useState } from "react";
 
 export function useData() {
@@ -13,7 +14,7 @@ export function useData() {
         console.log("🔌 Verbinde WebSocket...");
         const ws = new WebSocket(`${WS_URL}/ws`);
         wsRef.current = ws;
-        
+
         ws.onopen = () => {
             console.log("✅ WebSocket verbunden");
             setIsConnected(true);
@@ -22,12 +23,13 @@ export function useData() {
         ws.onmessage = (e) => {
             try {
                 const newCars: Car[] = JSON.parse(e.data);
-                
+
                 if (Array.isArray(newCars)) {
+                    playNewCarsSound()
                     console.log(`📥 ${newCars.length} Autos empfangen`);
-                    
+
                     setData(newCars);
-                    
+
                     // Nur beim ersten nicht-leeren Array
                     if (isFirst && newCars.length > 0) {
                         console.log("🎯 Erste Daten geladen");
